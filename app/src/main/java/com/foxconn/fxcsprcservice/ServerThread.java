@@ -466,7 +466,39 @@ public class ServerThread extends Thread {
             intent2.setAction("xiaomor.foxconn.device.cmd.result");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_PLAY)){
+        }
+        //=============MEDIA key Broadcast
+        else if(CmdStr.contains(SPRC_DIRK_PLAY)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("control", "play");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_STOP)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("control", "stop");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_FAST_RETURN)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("toward", "-20");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_FAST_FORWARD)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("toward", "20");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_PAUSE)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("control", "pause");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_NEXT)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("control", "next");
+            mContext.sendBroadcast(intent2);
+        }else if(CmdStr.contains(SPRC_DIRK_PREVIOUS)){
+            Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
+            intent2.putExtra("control", "prev");
+            mContext.sendBroadcast(intent2);
+        }
+        // ===========
+        /*else if(CmdStr.contains(SPRC_DIRK_PLAY)){
             KeyCode = KeyEvent.KEYCODE_MEDIA_PLAY;
         }else if(CmdStr.contains(SPRC_DIRK_STOP)){
             KeyCode = KeyEvent.KEYCODE_MEDIA_STOP;
@@ -480,7 +512,7 @@ public class ServerThread extends Thread {
             KeyCode = KeyEvent.KEYCODE_MEDIA_NEXT;
         }else if(CmdStr.contains(SPRC_DIRK_PREVIOUS)){
             KeyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS;
-        }else if(CmdStr.contains(SPRC_DISC_MUTE)){
+        }*/else if(CmdStr.contains(SPRC_DISC_MUTE)){
             setMute();
             return;
         }else if(CmdStr.contains(SPRC_DISC_UNMUTE)){
