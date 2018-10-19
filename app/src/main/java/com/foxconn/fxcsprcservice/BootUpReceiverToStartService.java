@@ -43,8 +43,5 @@ public class BootUpReceiverToStartService extends BroadcastReceiver {
             e.printStackTrace();
         }
 
-
-
-
     }
 }

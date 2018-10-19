@@ -53,11 +53,12 @@ public class SPRCService extends Service {
     private static String mProtocolType = "IPPROTO_UDP";
     private static String mModelName = "LCD-SPRC";
     private static String mSerialNum = "888888888888";
-    private static String mSDK = "IQIYI";
+ //   private static String mSDK = "IQIYI";
     private static String mTvFwVersion = "V2.09";
     private static String mTvBtMAC = "00:00:00:00:00:00";
     private static String mVerName = "";
     private static String mVerCode = "";
+    private static String mTvCommandVersion = "27";
     DatagramSocket mUdpSocket = null;
     private NetBroadcastReceiver netBroadcastReceiver=null;
     private TcpSocketThread tcpSocketThread;
@@ -83,7 +84,7 @@ public class SPRCService extends Service {
         mContext = getApplicationContext();
         mTvFwVersion =getTVVersion();
         mSerialNum = getTVSN();
-        mSDK = getTVSDK();
+    //    mSDK = getTVSDK();
         mModelName = getTVModel();
        // mTvBtMAC = getTVBTMAC();
         mTvBtMAC =getTVBtAddress();
@@ -91,7 +92,7 @@ public class SPRCService extends Service {
         mVerName = getVersionName(mContext);
         mVerCode = getVersionCode(mContext);
         UdpSocketThread udpSocketThread = new UdpSocketThread(mContext,UDP_PORT,
-                mLocalIp, mModelName, mSerialNum, mTvFwVersion ,mTvBtMAC ,mSDK,mVerName,mVerCode);
+                mLocalIp, mModelName, mSerialNum, mTvFwVersion,mVerName,mVerCode,mTvCommandVersion);
        // udpSocketThread.setOSPriority(Process.THREAD_PRIORITY_URGENT_AUDIO); // -19
         udpSocketThread.setOSPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY); // -8
         udpSocketThread.setPriority(Thread.MAX_PRIORITY); // 10
@@ -265,6 +266,7 @@ public class SPRCService extends Service {
         return mSerialNum;
     }
 
+    /*
     public String getTVSDK() {
         try {
             Class<?> CLASS = Class.forName("android.os.SystemProperties");
@@ -285,7 +287,7 @@ public class SPRCService extends Service {
         }
         return mSDK;
     }
-
+*/
 
     public String getLocalIpAddress() {
         try {

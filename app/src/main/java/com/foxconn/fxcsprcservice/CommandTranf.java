@@ -40,8 +40,9 @@ public class CommandTranf {
     public static final String SPRC_DISC_BT = "SPRC#DISC#16#8#1#N/A#";
     public static final String SPRC_DISC_BT_RETURN = "SPRC#DISC#16#8#1#";
 
-    public static final String SPRC_DISC_SDK = "SPRC#DISC#16#9#1#N/A#";
-    public static final String SPRC_DISC_SDK_RETURN = "SPRC#DISC#16#9#1#";
+    public static final String SPRC_DISC_TVCMD_VERSION  = "SPRC#DISC#16#9#1#N/A#";
+    public static final String SPRC_DISC_TVCMD_VERSION_RETURN = "SPRC#DISC#16#9#1#";
+
 
     // TCP
     // Group ID=17 ,Leader word:DELI Delivery special message.(Transmission base on IP/TCP)
@@ -62,6 +63,9 @@ public class CommandTranf {
 
     public static final String SPRC_DISC_GET_TV_SDK = "SPRC#DISC#18#13#1#N/A#";
     public static final String SPRC_DISC_GET_TV_SDK_RETURN = "SPRC#DISC#18#13#1#";
+
+//    public static final String SPRC_DISC_GET_VOICE_SDK = "SPRC#DISC#18#14#1#N/A#";
+//    public static final String SPRC_DISC_GET_VOICE_SDK_RETURN = "SPRC#DISC#18#14#1#";
 
     // Group ID=19 , Leader word:DIRK ,SHARP IR key code(Transmission base on IP/TCP)
     // Sys =1
@@ -95,6 +99,12 @@ public class CommandTranf {
     public static final String SPRC_DIRK_PAGE_DOWN = "SPRC#DIRK#19#1#2#1|251#";
     public static final String SPRC_DISC_MUTE=  "SPRC#DIRK#19#1#2#1|223#";
     public static final String SPRC_DISC_UNMUTE=  "SPRC#DIRK#19#1#2#1|222#";
+
+    //for MiC voice
+    public static final String SPRC_DISC_SHORTCUT=  "SPRC#DIRK#19#1#2#1|221#";
+    public static final String SPRC_DISC_OPEN_MIC=  "SPRC#DIRK#19#1#2#1|220#";
+    public static final String SPRC_DISC_CLOSE_MIC=  "SPRC#DIRK#19#1#2#1|219#";
+    public static final String SPRC_DISC_MIC_VOICE=  "SPRC#DIRK#19#1#3#1|218|";
 
     //for voice
     public static final String SPRC_DIRK_SEARCH= "SPRC#DIRK#19#1#3#1|249|";

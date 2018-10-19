@@ -135,12 +135,21 @@ public class ServerThread extends Thread {
                 sb.append(CommandTranf.SUFFIX);
             }
             else if(result.contains(SPRC_DISC_GET_TV_SDK)){
-                //String PageNameStr = getTopActivityInfo(mContext);
                 String TvSdkStr = getTVSDK();
+                String VoiceSdkStr = getVoiceSDK();
                 sb.append(CommandTranf.SPRC_DISC_GET_TV_SDK_RETURN);
-                sb.append(TvSdkStr);
+                sb.append(TvSdkStr+"|"+VoiceSdkStr);
                 sb.append(CommandTranf.SUFFIX);
             }
+            /*
+            else if(result.contains(SPRC_DISC_GET_VOICE_SDK)){
+                //String PageNameStr = getTopActivityInfo(mContext);
+                String VoiceSdkStr = getVoiceSDK();
+                sb.append(CommandTranf.SPRC_DISC_GET_VOICE_SDK_RETURN);
+                sb.append(VoiceSdkStr);
+                sb.append(CommandTranf.SUFFIX);
+            }
+            */
             else {
                 sb.append(CommandTranf.SPRC_DELI_ACCEPT);
                 sb.append(CommandTranf.TCP_ACCEPT);
@@ -188,6 +197,28 @@ public class ServerThread extends Thread {
             e.printStackTrace();
         }
         return mSDK;
+    }
+
+    public String getVoiceSDK() {
+        String mVoiceSDK="";
+        try {
+            Class<?> CLASS = Class.forName("android.os.SystemProperties");
+            mVoiceSDK= (String) CLASS.getMethod("get", String.class).invoke(null, "persist.sys.fxc.voice.sdk");
+            return mVoiceSDK;
+        }catch (IllegalAccessException e) {
+            Debug.i(TAG, "IllegalAccessException====>" + e.toString());
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            Debug.i(TAG, "NoSuchMethodException====>" + e.toString());
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            Debug.i(TAG, "InvocationTargetException====>" + e.toString());
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            Debug.i(TAG, "ClassNotFoundException====>" + e.toString());
+            e.printStackTrace();
+        }
+        return mVoiceSDK;
     }
 
 
@@ -256,19 +287,15 @@ public class ServerThread extends Thread {
             if (topAppProcess != null && topAppProcess.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
                 info.packageName = topAppProcess.processName;
                 info.topActivityName = "";
-                Debug.d(TAG, "11 Get top activity name :"+info.topActivityName);
             }
-            Debug.d(TAG, "22 Get top activity name :"+info.topActivityName);
         } else {
             //getRunningTasks() is deprecated since API Level 21 (Android 5.0)
             List localList = manager.getRunningTasks(1);
             ActivityManager.RunningTaskInfo localRunningTaskInfo = (ActivityManager.RunningTaskInfo)localList.get(0);
             info.packageName = localRunningTaskInfo.topActivity.getPackageName();
             info.topActivityName = localRunningTaskInfo.topActivity.getClassName();
-            Debug.d(TAG, "33 Get top activity name :"+info.topActivityName);
         }
-
-        Debug.d(TAG, "444 Get top activity name :"+info.topActivityName);
+        Debug.d(TAG, " Get top activity name :"+info.topActivityName);
         return info.topActivityName;
     }
 
@@ -432,6 +459,8 @@ public class ServerThread extends Thread {
             if (list != null && list.size() > 0) {
                 if ("com.sharp.fxc.mediainfo".equals(list.get(0).topActivity.getPackageName())){
                     Intent intent2 = new Intent("com.sharp.fxc.mediainfo.broadcast.uuidfromoutside");
+                    intent2.putExtra("FXC_EPGINFO",uuid);
+                    intent2.putExtra("VID_INDEX",vid_idx);
                     mContext.sendBroadcast(intent2);
                     return;
                 }
@@ -454,7 +483,41 @@ public class ServerThread extends Thread {
             intent2.putExtra("text", VoiceStr);
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.startsWith(SPRC_DIRK_VOICE_JSON)){
+        }
+        else if(CmdStr.startsWith(SPRC_DISC_SHORTCUT)){
+            //開啟快捷頁面
+            Intent mIntent = new Intent("com.sharp.fxc.shortcut.ShortcutActivity");
+            mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(mIntent);
+            return;
+        }
+        else if(CmdStr.startsWith(SPRC_DISC_OPEN_MIC)){
+            Intent mIntent = new Intent("com.letv.openmic.with.hardware");
+            mContext.sendBroadcast(mIntent);
+            return;
+        }
+        else if(CmdStr.startsWith(SPRC_DISC_CLOSE_MIC)){
+            // 關閉語音輸入動畫
+            Intent mIntent = new Intent("com.letv.closemic.with.hardware");
+            mContext.sendBroadcast(mIntent);
+            return;
+        }
+        else if(CmdStr.startsWith(SPRC_DISC_MIC_VOICE)){
+            String[] MicVoiceStrSplit = CmdStr.split("\\|");
+            String MicVoiceStr =null;
+            for (int i=0; i< MicVoiceStrSplit[2].split("\\#").length ;i++) {
+                MicVoiceStr=MicVoiceStrSplit[2].split("\\#")[i];
+            }
+            Debug.d(TAG, "MicVoiceStr ="+MicVoiceStr);
+
+            // 送出語音輸入文字 String MicVoiceStr
+            Intent mIntent = new Intent("sayinfo");
+            mIntent.putExtra("query", MicVoiceStr);
+            mIntent.setPackage("com.sharp.fxc.mor.tv");
+            mContext.sendBroadcast(mIntent);
+            return;
+        }
+        else if(CmdStr.startsWith(SPRC_DIRK_VOICE_JSON)){
             String[] VoiceJsonStrSplit = CmdStr.split("\\|");
             String VoiceJsonStr =null;
             for (int i=0; i< VoiceJsonStrSplit[2].split("\\#").length ;i++) {
@@ -472,10 +535,12 @@ public class ServerThread extends Thread {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "play");
             mContext.sendBroadcast(intent2);
+            return;
         }else if(CmdStr.contains(SPRC_DIRK_STOP)){
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "stop");
             mContext.sendBroadcast(intent2);
+            return;
         }else if(CmdStr.contains(SPRC_DIRK_FAST_RETURN)){
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("toward", "-20");
@@ -484,20 +549,24 @@ public class ServerThread extends Thread {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("toward", "20");
             mContext.sendBroadcast(intent2);
+            return;
         }else if(CmdStr.contains(SPRC_DIRK_PAUSE)){
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "pause");
             mContext.sendBroadcast(intent2);
+            return;
         }else if(CmdStr.contains(SPRC_DIRK_NEXT)){
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "next");
             mContext.sendBroadcast(intent2);
+            return;
         }else if(CmdStr.contains(SPRC_DIRK_PREVIOUS)){
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "prev");
             mContext.sendBroadcast(intent2);
+            return;
         }
-        // ===========
+        // ===========MEDIA key Broadcast ============
         /*else if(CmdStr.contains(SPRC_DIRK_PLAY)){
             KeyCode = KeyEvent.KEYCODE_MEDIA_PLAY;
         }else if(CmdStr.contains(SPRC_DIRK_STOP)){
@@ -605,7 +674,7 @@ public class ServerThread extends Thread {
                         IsRepat = false;
                         if(prekey != key) {
                             prekey = key;
-                            Debug.d(TAG, "repat: false ACTION_UP AAAA KeyCode=" + key + "  prekey=" + prekey);
+                            Debug.d(TAG, "repat: false ACTION_UP  KeyCode=" + key + "  prekey=" + prekey);
                             //inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_UP, key, 0));
                            // inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, key));
                         }
@@ -683,6 +752,5 @@ public class ServerThread extends Thread {
               clientin = null;
             }
         }
-
     }
 }

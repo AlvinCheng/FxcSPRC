@@ -40,11 +40,11 @@ public class UdpSocketThread extends Thread {
     private static String mTvFwVersion = "V2.09";
     private static String mVerName = "";
     private static String mVerCode = "";
-    private static String mSDK = "IQIYI";
     private static String mTvBtMAC = "00:00:00:00:00:00";
+    private static String mTvCommandVersion = "27";
 
     public UdpSocketThread(Context mUDPContext ,int port, String localIp, String modelName,
-                           String serialNum, String tvFwVersion, String tvBtMac, String tvSdk , String vername, String vercode) {
+                           String serialNum, String tvFwVersion, String tvBtMac, String vername, String vercode,String TvCommandVersion) {
         try {
             mContext=mUDPContext;
             mUdpSocket = new DatagramSocket(UDP_PORT);
@@ -55,13 +55,12 @@ public class UdpSocketThread extends Thread {
             mTvBtMAC = tvBtMac;
             mVerName = vername;
             mVerCode = vercode;
-            mSDK = tvSdk;
+            mTvCommandVersion = TvCommandVersion;
             Debug.d(TAG, "ModelName =" + mModelName);
             Debug.d(TAG, "TvFwVersion =" + mTvFwVersion);
             Debug.d(TAG, "SerialNum =" + mSerialNum);
             Debug.d(TAG, "LocalIp =" + mLocalIp);
             Debug.d(TAG, "BtAddress =" + mTvBtMAC);
-            Debug.d(TAG, "TVSDK =" + mSDK);
             Debug.d(TAG, "SPRC Version :V" + mVerName);
      //       Debug.d(TAG, "SPRC VerCode =" + mVerCode);
             Debug.d(TAG, "Init UDP Socket Thread Start");
@@ -106,7 +105,7 @@ public class UdpSocketThread extends Thread {
                 sb.append("|");
                 sb.append(mTvBtMAC);
                 sb.append("|");
-                sb.append(mSDK);
+                sb.append(mTvCommandVersion);
                 sb.append(CommandTranf.SUFFIX);
             } else if (result.equals(CommandTranf.SPRC_DISC_IP)){
                 sb.append(CommandTranf.SPRC_DISC_IP_RETURN);
@@ -136,11 +135,11 @@ public class UdpSocketThread extends Thread {
                 sb.append(CommandTranf.SPRC_DISC_BT_RETURN);
                 sb.append(mTvBtMAC);
                 sb.append(CommandTranf.SUFFIX);
-            }/*else if (result.equals(CommandTranf.SPRC_DISC_SDK)) {
-                sb.append(CommandTranf.SPRC_DISC_SDK_RETURN);
-                sb.append(mSDK);
+            }else if (result.equals(CommandTranf.SPRC_DISC_TVCMD_VERSION)) {
+                sb.append(CommandTranf.SPRC_DISC_TVCMD_VERSION_RETURN);
+                sb.append(mTvCommandVersion);
                 sb.append(CommandTranf.SUFFIX);
-            }*/
+            }
 
             returnInfo = sb.toString().trim();
             Debug.d(TAG, "TV Broadcast UDP  :" + returnInfo);
