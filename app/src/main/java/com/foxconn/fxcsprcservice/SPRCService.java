@@ -92,7 +92,7 @@ public class SPRCService extends Service {
         mVerName = getVersionName(mContext);
         mVerCode = getVersionCode(mContext);
         UdpSocketThread udpSocketThread = new UdpSocketThread(mContext,UDP_PORT,
-                mLocalIp, mModelName, mSerialNum, mTvFwVersion,mVerName,mVerCode,mTvCommandVersion);
+                mLocalIp, mModelName, mSerialNum, mTvFwVersion,mTvBtMAC,mVerName,mVerCode,mTvCommandVersion);
        // udpSocketThread.setOSPriority(Process.THREAD_PRIORITY_URGENT_AUDIO); // -19
         udpSocketThread.setOSPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY); // -8
         udpSocketThread.setPriority(Thread.MAX_PRIORITY); // 10

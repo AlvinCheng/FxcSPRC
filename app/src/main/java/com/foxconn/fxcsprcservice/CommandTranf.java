@@ -105,6 +105,7 @@ public class CommandTranf {
     public static final String SPRC_DISC_OPEN_MIC=  "SPRC#DIRK#19#1#2#1|220#";
     public static final String SPRC_DISC_CLOSE_MIC=  "SPRC#DIRK#19#1#2#1|219#";
     public static final String SPRC_DISC_MIC_VOICE=  "SPRC#DIRK#19#1#3#1|218|";
+    public static final String SPRC_DISC_MOR_VOLUME=  "SPRC#DIRK#19#1#3#1|217|";
 
     //for voice
     public static final String SPRC_DIRK_SEARCH= "SPRC#DIRK#19#1#3#1|249|";

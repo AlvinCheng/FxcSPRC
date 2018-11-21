@@ -8,6 +8,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -200,7 +201,9 @@ public class UdpSocketThread extends Thread {
                             .getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
                         InetAddress inetAddress = enumIpAddr.nextElement();
                         if (!inetAddress.isLoopbackAddress() && !inetAddress.isLinkLocalAddress()) {
-                              return inetAddress.getHostAddress().toString();
+                            if (inetAddress instanceof Inet4Address) { // only care IPv4 address
+                                return inetAddress.getHostAddress().toString();
+                            }
                         }
                     }
                // }

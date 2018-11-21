@@ -517,6 +517,23 @@ public class ServerThread extends Thread {
             mContext.sendBroadcast(mIntent);
             return;
         }
+        else if(CmdStr.startsWith(SPRC_DISC_MOR_VOLUME)){
+            String[] MorVolStrSplit = CmdStr.split("\\|");
+            String MorVolStr =null;
+            int IntMorVolValue = 0;
+            for (int i=0; i< MorVolStrSplit[2].split("\\#").length ;i++) {
+                MorVolStr=MorVolStrSplit[2].split("\\#")[i];
+            }
+            Debug.d(TAG, "MorVolStr ="+MorVolStr);
+            IntMorVolValue = Integer.valueOf(MorVolStr);
+            // send record int volume to MOR
+            Intent intent = new Intent();
+            intent.setAction("recording");
+            intent.putExtra("recordingVolume", IntMorVolValue);
+            intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+            mContext.sendBroadcast(intent);
+            return;
+        }
         else if(CmdStr.startsWith(SPRC_DIRK_VOICE_JSON)){
             String[] VoiceJsonStrSplit = CmdStr.split("\\|");
             String VoiceJsonStr =null;
