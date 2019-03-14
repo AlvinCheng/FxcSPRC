@@ -4,8 +4,10 @@ package com.foxconn.fxcsprcservice;
  * Created by alvin on 2018/4/19.
  */
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Instrumentation;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -14,10 +16,17 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
+
 import com.foxconn.fxcsprcservice.utils.Debug;
+
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -27,6 +36,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
+
 import static android.media.AudioManager.STREAM_MUSIC;
 import static com.foxconn.fxcsprcservice.CommandTranf.*;
 
@@ -37,22 +47,26 @@ public class ServerThread extends Thread {
     private DataInputStream clientin;
     private Socket tcpSocket;
     private String line = null;
-    private String reciveString ="";
-    private String result ="";
+    private String reciveString = "";
+    private String result = "";
     private ServerSocket TCPServerSocket;
     private static List<Socket> mClientList = new ArrayList<>();
     private long curTime = 0;
-    private long RepatTime = 0;
+    private long RepeatTime = 0;
     private AudioManager mAudioManager;
     private ContentResolver mContentResolver;
     private static final int CONNECT_TIMEOUT = 1200000;//20 min
     private static int KeyCode = 0;
+    private int Repeat_count = 0;
+    private int repeat_thread_hold = 3;
     private static boolean IsNumberKey = false;
-   // private int prekey = 0;
+    // private int prekey = 0;
     private static int prekey = 0;
-    private static int prekeyCode =0;
+    private boolean IsRepeat = false;
+    private static int prekeyCode = 0;
     private static int key = 0;
-    public static boolean KeyThreadExit = false ;
+    public static boolean KeyThreadExit = false;
+    public static boolean IsShow = false;
     private static int which = 0;
 
     @SuppressWarnings("unused")
@@ -60,30 +74,32 @@ public class ServerThread extends Thread {
         // can't use Constructor
     }
 
-    public ServerThread(Context ServiceContext,Socket TCPSocket) {
-      // Debug.d(TAG, "ServerThread start=======in===========>"+Thread.currentThread().getName() + "accept connection from client");
-        tcpSocket =TCPSocket;
-        mContext =ServiceContext;
+    public ServerThread(Context ServiceContext, Socket TCPSocket) {
+        // Debug.d(TAG, "ServerThread start=======in===========>"+Thread.currentThread().getName() + "accept connection from client");
+        tcpSocket = TCPSocket;
+        mContext = ServiceContext;
         mClientList.add(tcpSocket);
-        for(int c=0;c<mClientList.size();c++){
+        for (int c = 0; c < mClientList.size(); c++) {
             // Debug.d(TAG, "Client c[] =" +mClientList.get(c));
-            Debug.d(TAG, String.format("accepted from Client : c[%d]=%s",c,mClientList.get(c)));
+            Debug.d(TAG, String.format("accepted from Client : c[%d]=%s", c, mClientList.get(c)));
             //Debug.d(TAG, "Tcp Socket getInetAddress="+ tcpSocket.getInetAddress());
-            if(tcpSocket.getInetAddress().equals(mClientList.get(c).getInetAddress())) {
-                Debug.d(TAG, "Remove the same IP in Client List " );
+            if (tcpSocket.getInetAddress().equals(mClientList.get(c).getInetAddress())) {
+                Debug.d(TAG, "Remove the same IP in Client List ");
                 mClientList.remove(c);
             }
-            which=c;
+            which = c;
         }
         Debug.d(TAG, "Which client =" + which);
         mAudioManager = (AudioManager) mContext.getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
-        if ( null == mAudioManager)
-        {
-            Debug.d(TAG, "\"Failed to get AudioManager\" " );
-            return ;
+        if (null == mAudioManager) {
+            Debug.d(TAG, "\"Failed to get AudioManager\" ");
+            return;
         }
+
+        /*  remove  keyThread for repeat key
         Thread keyThread = new Thread(new keyThread());
         keyThread.start();
+        */
 
     }
 
@@ -105,7 +121,7 @@ public class ServerThread extends Thread {
     private void serverSendByTcp(String result, Socket tcpSocket) {
         // TODO Auto-generated method stub
         try {
-           // Debug.i(TAG, "serverSendByTcp===");
+            // Debug.i(TAG, "serverSendByTcp===");
             OutputStream outputStream = tcpSocket.getOutputStream();
             PrintWriter printWriter = new PrintWriter(outputStream);
             String returnInfo = "ERROR";
@@ -114,31 +130,27 @@ public class ServerThread extends Thread {
                 sb.append(CommandTranf.SPRC_DELI_SYNC_OK);
                 sb.append(CommandTranf.TCP_SYNC_OK);
                 sb.append(CommandTranf.SUFFIX);
-            }
-           else if(result.contains(SPRC_DISC_MUTE_STATE)){
+            } else if (result.contains(SPRC_DISC_MUTE_STATE)) {
                 String state = getTVMute();
                 sb.append(CommandTranf.SPRC_DISC_MUTE_STATE_RETURN);
                 sb.append(state);
                 sb.append(CommandTranf.SUFFIX);
-            }
-            else if(result.contains(SPRC_DISC_GET_VOLUME)){
-                String VolumeStr =getVolume();
+            } else if (result.contains(SPRC_DISC_GET_VOLUME)) {
+                String VolumeStr = getVolume();
                 sb.append(CommandTranf.SPRC_DISC_GET_VOLUME_RETURN);
                 sb.append(VolumeStr);
                 sb.append(CommandTranf.SUFFIX);
-            }
-            else if(result.contains(SPRC_DISC_GET_CURRENT_PAGE_NAME)){
+            } else if (result.contains(SPRC_DISC_GET_CURRENT_PAGE_NAME)) {
                 //String PageNameStr = getTopActivityInfo(mContext);
                 String PageNameStr = getPageName();
                 sb.append(CommandTranf.SPRC_DISC_GET_CURRENT_PAGE__NAME_RETURN);
                 sb.append(PageNameStr);
                 sb.append(CommandTranf.SUFFIX);
-            }
-            else if(result.contains(SPRC_DISC_GET_TV_SDK)){
+            } else if (result.contains(SPRC_DISC_GET_TV_SDK)) {
                 String TvSdkStr = getTVSDK();
                 String VoiceSdkStr = getVoiceSDK();
                 sb.append(CommandTranf.SPRC_DISC_GET_TV_SDK_RETURN);
-                sb.append(TvSdkStr+"|"+VoiceSdkStr);
+                sb.append(TvSdkStr + "|" + VoiceSdkStr);
                 sb.append(CommandTranf.SUFFIX);
             }
             /*
@@ -158,8 +170,8 @@ public class ServerThread extends Thread {
             returnInfo = sb.toString().trim();
             printWriter.print(returnInfo);
             printWriter.flush();
-            Debug.d(TAG, " TV TCP Return Info:" + returnInfo+" To Clinet :("+tcpSocket.getRemoteSocketAddress()+")");
-    //      Debug.d(TAG, Thread.currentThread().getName() + "closing connection with client");
+            Debug.d(TAG, " TV TCP Return Info:" + returnInfo + " To Clinet :(" + tcpSocket.getRemoteSocketAddress() + ")");
+            //      Debug.d(TAG, Thread.currentThread().getName() + "closing connection with client");
         } catch (UnknownHostException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -178,12 +190,12 @@ public class ServerThread extends Thread {
     }
 
     public String getTVSDK() {
-        String mSDK="";
+        String mSDK = "";
         try {
             Class<?> CLASS = Class.forName("android.os.SystemProperties");
-             mSDK= (String) CLASS.getMethod("get", String.class).invoke(null, "persist.sys.fxc.sdk");
+            mSDK = (String) CLASS.getMethod("get", String.class).invoke(null, "persist.sys.fxc.sdk");
             return mSDK;
-        }catch (IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             Debug.i(TAG, "IllegalAccessException====>" + e.toString());
             e.printStackTrace();
         } catch (NoSuchMethodException e) {
@@ -200,12 +212,12 @@ public class ServerThread extends Thread {
     }
 
     public String getVoiceSDK() {
-        String mVoiceSDK="";
+        String mVoiceSDK = "";
         try {
             Class<?> CLASS = Class.forName("android.os.SystemProperties");
-            mVoiceSDK= (String) CLASS.getMethod("get", String.class).invoke(null, "persist.sys.fxc.voice.sdk");
+            mVoiceSDK = (String) CLASS.getMethod("get", String.class).invoke(null, "persist.sys.fxc.voice.sdk");
             return mVoiceSDK;
-        }catch (IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             Debug.i(TAG, "IllegalAccessException====>" + e.toString());
             e.printStackTrace();
         } catch (NoSuchMethodException e) {
@@ -234,7 +246,7 @@ public class ServerThread extends Thread {
     }
 
     private String getTVMute() {
-       // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         String mute = "";
         boolean isMute = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -243,22 +255,22 @@ public class ServerThread extends Thread {
             else {
                 mute = "unmute";
             }
-        }else{
+        } else {
             try {
                 Class clz = Class.forName("android.media.AudioManager");
                 Method isMasterMute = clz.getMethod("isMasterMute");
                 isMute = (boolean) isMasterMute.invoke(mAudioManager);
             } catch (Exception e) {
-                Debug.e(TAG, "Error"+e.toString());
+                Debug.e(TAG, "Error" + e.toString());
                 //Do something
             }
-          // if (querySpeakerMute()==0)
+            // if (querySpeakerMute()==0)
             if (isMute)
-                   mute = "mute";
+                mute = "mute";
             else
-                   mute = "unmute";
+                mute = "unmute";
         }
-        Debug.d(TAG, "state="+mute);
+        Debug.d(TAG, "state=" + mute);
         return mute;
     }
 
@@ -266,20 +278,20 @@ public class ServerThread extends Thread {
         String PageName = "";
         ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
         List<ActivityManager.RunningTaskInfo> list = am.getRunningTasks(2);
-       // if (list != null && list.size() > 0) {
-            PageName= list.get(0).topActivity.getClassName();
-      //  }
-        Debug.d(TAG, "Get top activity name :"+PageName);
+        // if (list != null && list.size() > 0) {
+        PageName = list.get(0).topActivity.getClassName();
+        //  }
+        Debug.d(TAG, "Get top activity name :" + PageName);
         return PageName;
     }
 
-    public static class  TopActivityInfo {
-        public  String packageName =  "" ;
-        public  String topActivityName =  "" ;
+    public static class TopActivityInfo {
+        public String packageName = "";
+        public String topActivityName = "";
     }
 
     public static String getTopActivityInfo(Context context) {
-        ActivityManager manager = ((ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE));
+        ActivityManager manager = ((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE));
         TopActivityInfo info = new TopActivityInfo();
         if (Build.VERSION.SDK_INT >= 21) {
             List<ActivityManager.RunningAppProcessInfo> pis = manager.getRunningAppProcesses();
@@ -291,11 +303,11 @@ public class ServerThread extends Thread {
         } else {
             //getRunningTasks() is deprecated since API Level 21 (Android 5.0)
             List localList = manager.getRunningTasks(1);
-            ActivityManager.RunningTaskInfo localRunningTaskInfo = (ActivityManager.RunningTaskInfo)localList.get(0);
+            ActivityManager.RunningTaskInfo localRunningTaskInfo = (ActivityManager.RunningTaskInfo) localList.get(0);
             info.packageName = localRunningTaskInfo.topActivity.getPackageName();
             info.topActivityName = localRunningTaskInfo.topActivity.getClassName();
         }
-        Debug.d(TAG, " Get top activity name :"+info.topActivityName);
+        Debug.d(TAG, " Get top activity name :" + info.topActivityName);
         return info.topActivityName;
     }
 
@@ -304,21 +316,21 @@ public class ServerThread extends Thread {
         // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         int Volume = mAudioManager.getStreamVolume(STREAM_MUSIC);
         VolumeStr = String.valueOf(Volume);
-        Debug.d(TAG, "Get Volume="+VolumeStr);
+        Debug.d(TAG, "Get Volume=" + VolumeStr);
         return VolumeStr;
     }
 
-    private void setMute(){
+    private void setMute() {
         // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            mAudioManager.setStreamMute(STREAM_MUSIC,true);
-        }else{
+            mAudioManager.setStreamMute(STREAM_MUSIC, true);
+        } else {
             try {
                 Class clz = Class.forName("android.media.AudioManager");
-                Method setMasterMute = clz.getMethod("setMasterMute", boolean.class,int.class);
-                setMasterMute.invoke(mAudioManager, true ,0);
+                Method setMasterMute = clz.getMethod("setMasterMute", boolean.class, int.class);
+                setMasterMute.invoke(mAudioManager, true, 0);
             } catch (Exception e) {
-                Debug.e(TAG, "Error"+e.toString());
+                Debug.e(TAG, "Error" + e.toString());
                 //Do something
             }
         }
@@ -326,15 +338,15 @@ public class ServerThread extends Thread {
     }
 
     private void setUnMute() {
-       // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        // AudioManager audio = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mAudioManager.setStreamMute(STREAM_MUSIC, false);
-        }else {
+        } else {
             try {
                 Class<?> CLASS = Class.forName("android.media.AudioManager");
-                CLASS.getMethod("setMasterMute", boolean.class, int.class).invoke(mAudioManager,false, 0);
+                CLASS.getMethod("setMasterMute", boolean.class, int.class).invoke(mAudioManager, false, 0);
             } catch (Exception e) {
-                Debug.e(TAG, "Error"+e.toString());
+                Debug.e(TAG, "Error" + e.toString());
                 //Do something
             }
         }
@@ -343,68 +355,68 @@ public class ServerThread extends Thread {
 
     private void MapCmdToKeyEvent(String CmdStr, DataInputStream clientin) throws InterruptedException {
 
-        if(CmdStr.contains(SPRC_DIRK_NUM_1)){
+        if (CmdStr.contains(SPRC_DIRK_NUM_1)) {
             KeyCode = KeyEvent.KEYCODE_1;
-        } else if(CmdStr.contains(SPRC_DIRK_NUM_2)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_2)) {
             KeyCode = KeyEvent.KEYCODE_2;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_3)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_3)) {
             KeyCode = KeyEvent.KEYCODE_3;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_4)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_4)) {
             KeyCode = KeyEvent.KEYCODE_4;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_5)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_5)) {
             KeyCode = KeyEvent.KEYCODE_5;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_6)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_6)) {
             KeyCode = KeyEvent.KEYCODE_6;
-        } else if(CmdStr.contains(SPRC_DIRK_NUM_7)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_7)) {
             KeyCode = KeyEvent.KEYCODE_7;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_8)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_8)) {
             KeyCode = KeyEvent.KEYCODE_8;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_9)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_9)) {
             KeyCode = KeyEvent.KEYCODE_9;
-        }else if(CmdStr.contains(SPRC_DIRK_NUM_0)){
+        } else if (CmdStr.contains(SPRC_DIRK_NUM_0)) {
             KeyCode = KeyEvent.KEYCODE_0;
-        }else if(CmdStr.contains(SPRC_DIRK_CH_UP)){
+        } else if (CmdStr.contains(SPRC_DIRK_CH_UP)) {
             KeyCode = KeyEvent.KEYCODE_CHANNEL_UP;
-        }else if(CmdStr.contains(SPRC_DIRK_CH_DOWN)){
+        } else if (CmdStr.contains(SPRC_DIRK_CH_DOWN)) {
             KeyCode = KeyEvent.KEYCODE_CHANNEL_DOWN;
-        }else if(CmdStr.contains(SPRC_DIRK_INPUT)){
+        } else if (CmdStr.contains(SPRC_DIRK_INPUT)) {
             Intent intent2 = new Intent("com.foxconn.etvg.inputsource.intent.action.FxcInputSourceActivity");
             intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             mContext.startActivity(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_VOLUME_UP)){
+        } else if (CmdStr.contains(SPRC_DIRK_VOLUME_UP)) {
             KeyCode = KeyEvent.KEYCODE_VOLUME_UP;
-        }else if(CmdStr.contains(SPRC_DIRK_VOLUME_DOWN)){
+        } else if (CmdStr.contains(SPRC_DIRK_VOLUME_DOWN)) {
             KeyCode = KeyEvent.KEYCODE_VOLUME_DOWN;
-        }else if(CmdStr.contains(SPRC_DIRK_POWER)){
+        } else if (CmdStr.contains(SPRC_DIRK_POWER)) {
             KeyCode = KeyEvent.KEYCODE_POWER;
-        }else if(CmdStr.contains(SPRC_DIRK_VOLUME_MUTE)){
+        } else if (CmdStr.contains(SPRC_DIRK_VOLUME_MUTE)) {
             KeyCode = KeyEvent.KEYCODE_VOLUME_MUTE;
-        }else if(CmdStr.contains(SPRC_DIRK_DISPLAY)){
+        } else if (CmdStr.contains(SPRC_DIRK_DISPLAY)) {
             KeyCode = KeyEvent.KEYCODE_INFO;
-        }else if(CmdStr.contains(SPRC_DIRK_MENU)){
+        } else if (CmdStr.contains(SPRC_DIRK_MENU)) {
             KeyCode = KeyEvent.KEYCODE_MENU;
-        }else if(CmdStr.contains(SPRC_DIRK_ENTER)){
-           // KeyCode = KeyEvent.KEYCODE_ENTER;
+        } else if (CmdStr.contains(SPRC_DIRK_ENTER)) {
+            // KeyCode = KeyEvent.KEYCODE_ENTER;
             KeyCode = KeyEvent.KEYCODE_DPAD_CENTER;
-        }else if(CmdStr.contains(SPRC_DIRK_UP)){
+        } else if (CmdStr.contains(SPRC_DIRK_UP)) {
             KeyCode = KeyEvent.KEYCODE_DPAD_UP;
-        }else if(CmdStr.contains(SPRC_DIRK_DOWN)){
+        } else if (CmdStr.contains(SPRC_DIRK_DOWN)) {
             KeyCode = KeyEvent.KEYCODE_DPAD_DOWN;
-        }else if(CmdStr.contains(SPRC_DIRK_HOME)){
+        } else if (CmdStr.contains(SPRC_DIRK_HOME)) {
             KeyCode = KeyEvent.KEYCODE_HOME;
-        }else if(CmdStr.contains(SPRC_DIRK_RETURN)){
+        } else if (CmdStr.contains(SPRC_DIRK_RETURN)) {
             KeyCode = KeyEvent.KEYCODE_BACK;
-        }else if(CmdStr.contains(SPRC_DIRK_LEFT)){
+        } else if (CmdStr.contains(SPRC_DIRK_LEFT)) {
             KeyCode = KeyEvent.KEYCODE_DPAD_LEFT;
-        }else if(CmdStr.contains(SPRC_DIRK_RIGHT)){
+        } else if (CmdStr.contains(SPRC_DIRK_RIGHT)) {
             KeyCode = KeyEvent.KEYCODE_DPAD_RIGHT;
-        }else if(CmdStr.contains(SPRC_DIRK_PAGE_UP)){
+        } else if (CmdStr.contains(SPRC_DIRK_PAGE_UP)) {
             KeyCode = KeyEvent.KEYCODE_PAGE_UP;
-        }else if(CmdStr.contains(SPRC_DIRK_PAGE_DOWN)){
+        } else if (CmdStr.contains(SPRC_DIRK_PAGE_DOWN)) {
             KeyCode = KeyEvent.KEYCODE_PAGE_DOWN;
-        }else if(CmdStr.startsWith(SPRC_DIRK_SEARCH)){
-            String SearchStr =null;
+        } else if (CmdStr.startsWith(SPRC_DIRK_SEARCH)) {
+            String SearchStr = null;
             String[] SearchStrSplit = null;
             SearchStrSplit = CmdStr.split("\\|");
 /*
@@ -413,11 +425,11 @@ public class ServerThread extends Thread {
               //  Debug.d(TAG, String.format("SearchStrSplit[%d] = %s ", i, SearchStrSplit[i]));
             }
  */
-            for (int i=0; i< SearchStrSplit[2].split("\\#").length ;i++) {
-               // Debug.d(TAG, String.format("SearchStr[%d] = %s ", i, SearchStrSplit[2].split("\\#")[i]));
-                SearchStr=SearchStrSplit[2].split("\\#")[i];
+            for (int i = 0; i < SearchStrSplit[2].split("\\#").length; i++) {
+                // Debug.d(TAG, String.format("SearchStr[%d] = %s ", i, SearchStrSplit[2].split("\\#")[i]));
+                SearchStr = SearchStrSplit[2].split("\\#")[i];
             }
-            Debug.d(TAG, "SearchStr ="+SearchStr);
+            Debug.d(TAG, "SearchStr =" + SearchStr);
             ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
             List<ActivityManager.RunningTaskInfo> list = am.getRunningTasks(2);
             if (list != null && list.size() > 0) {
@@ -440,16 +452,16 @@ public class ServerThread extends Thread {
             searchIntent.putExtra("CmdMode", true);
             mContext.startActivity(searchIntent);
             return;
-        }else if(CmdStr.startsWith(SPRC_DIRK_UUID)){
-            String uuid="",vid_idx="";
+        } else if (CmdStr.startsWith(SPRC_DIRK_UUID)) {
+            String uuid = "", vid_idx = "";
             String[] UUIDStrSplit = CmdStr.split("\\|");
-            for (int i=0; i< UUIDStrSplit[2].split("\\#").length ;i++) {
+            for (int i = 0; i < UUIDStrSplit[2].split("\\#").length; i++) {
 
-                vid_idx=UUIDStrSplit[3].split("\\#")[i];
+                vid_idx = UUIDStrSplit[3].split("\\#")[i];
             }
-            uuid =UUIDStrSplit[2];
-            Debug.d(TAG, "UUIDStr ="+uuid);
-            Debug.d(TAG, "vid_idx ="+vid_idx);
+            uuid = UUIDStrSplit[2];
+            Debug.d(TAG, "UUIDStr =" + uuid);
+            Debug.d(TAG, "vid_idx =" + vid_idx);
             /*
             for (String Str:Strs) {
                 Str=Strs;
@@ -457,58 +469,59 @@ public class ServerThread extends Thread {
             ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
             List<ActivityManager.RunningTaskInfo> list = am.getRunningTasks(1);
             if (list != null && list.size() > 0) {
-                if ("com.sharp.fxc.mediainfo".equals(list.get(0).topActivity.getPackageName())){
+                if ("com.sharp.fxc.mediainfo".equals(list.get(0).topActivity.getPackageName())) {
                     Intent intent2 = new Intent("com.sharp.fxc.mediainfo.broadcast.uuidfromoutside");
-                    intent2.putExtra("FXC_EPGINFO",uuid);
-                    intent2.putExtra("VID_INDEX",vid_idx);
+                    intent2.putExtra("FXC_EPGINFO", uuid);
+                    intent2.putExtra("VID_INDEX", vid_idx);
                     mContext.sendBroadcast(intent2);
                     return;
                 }
             }
             Intent uuidIntent = new Intent("com.sharp.fxc.intent.action.VideoPlayer");
             uuidIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            uuidIntent.putExtra("FXC_EPGINFO",uuid);
-            uuidIntent.putExtra("VID_INDEX",vid_idx);
-            uuidIntent.putExtra("FXC_DEVICETYPE","2");
-            mContext.startActivity(uuidIntent);
-            return;
-        }else if(CmdStr.startsWith(SPRC_DIRK_VOICE)){
-            String[] VoiceStrSplit = CmdStr.split("\\|");
-            String VoiceStr =null;
-            for (int i=0; i< VoiceStrSplit[2].split("\\#").length ;i++) {
-                VoiceStr=VoiceStrSplit[2].split("\\#")[i];
+            if (!vid_idx.equals("0")) {
+                uuidIntent.putExtra("FXC_EPGINFO", uuid);
+                uuidIntent.putExtra("VID_INDEX", vid_idx);
+                uuidIntent.putExtra("FXC_DEVICETYPE", "2");
+            } else {
+                uuidIntent.putExtra("uuid", uuid);
             }
-            Debug.d(TAG, "SearchStr ="+VoiceStr);
+            mContext.startActivity(uuidIntent);
+
+            return;
+        } else if (CmdStr.startsWith(SPRC_DIRK_VOICE)) {
+            String[] VoiceStrSplit = CmdStr.split("\\|");
+            String VoiceStr = null;
+            for (int i = 0; i < VoiceStrSplit[2].split("\\#").length; i++) {
+                VoiceStr = VoiceStrSplit[2].split("\\#")[i];
+            }
+            Debug.d(TAG, "SearchStr =" + VoiceStr);
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.external.input");
             intent2.putExtra("text", VoiceStr);
             mContext.sendBroadcast(intent2);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DISC_SHORTCUT)){
+        } else if (CmdStr.startsWith(SPRC_DISC_SHORTCUT)) {
             //開啟快捷頁面
             Intent mIntent = new Intent("com.sharp.fxc.shortcut.ShortcutActivity");
             mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             mContext.startActivity(mIntent);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DISC_OPEN_MIC)){
+        } else if (CmdStr.startsWith(SPRC_DISC_OPEN_MIC)) {
             Intent mIntent = new Intent("com.letv.openmic.with.hardware");
             mContext.sendBroadcast(mIntent);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DISC_CLOSE_MIC)){
+        } else if (CmdStr.startsWith(SPRC_DISC_CLOSE_MIC)) {
             // 關閉語音輸入動畫
             Intent mIntent = new Intent("com.letv.closemic.with.hardware");
             mContext.sendBroadcast(mIntent);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DISC_MIC_VOICE)){
+        } else if (CmdStr.startsWith(SPRC_DISC_MIC_VOICE)) {
             String[] MicVoiceStrSplit = CmdStr.split("\\|");
-            String MicVoiceStr =null;
-            for (int i=0; i< MicVoiceStrSplit[2].split("\\#").length ;i++) {
-                MicVoiceStr=MicVoiceStrSplit[2].split("\\#")[i];
+            String MicVoiceStr = null;
+            for (int i = 0; i < MicVoiceStrSplit[2].split("\\#").length; i++) {
+                MicVoiceStr = MicVoiceStrSplit[2].split("\\#")[i];
             }
-            Debug.d(TAG, "MicVoiceStr ="+MicVoiceStr);
+            Debug.d(TAG, "MicVoiceStr =" + MicVoiceStr);
 
             // 送出語音輸入文字 String MicVoiceStr
             Intent mIntent = new Intent("sayinfo");
@@ -516,15 +529,14 @@ public class ServerThread extends Thread {
             mIntent.setPackage("com.sharp.fxc.mor.tv");
             mContext.sendBroadcast(mIntent);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DISC_MOR_VOLUME)){
+        } else if (CmdStr.startsWith(SPRC_DISC_MOR_VOLUME)) {
             String[] MorVolStrSplit = CmdStr.split("\\|");
-            String MorVolStr =null;
+            String MorVolStr = null;
             int IntMorVolValue = 0;
-            for (int i=0; i< MorVolStrSplit[2].split("\\#").length ;i++) {
-                MorVolStr=MorVolStrSplit[2].split("\\#")[i];
+            for (int i = 0; i < MorVolStrSplit[2].split("\\#").length; i++) {
+                MorVolStr = MorVolStrSplit[2].split("\\#")[i];
             }
-            Debug.d(TAG, "MorVolStr ="+MorVolStr);
+            Debug.d(TAG, "MorVolStr =" + MorVolStr);
             IntMorVolValue = Integer.valueOf(MorVolStr);
             // send record int volume to MOR
             Intent intent = new Intent();
@@ -533,14 +545,13 @@ public class ServerThread extends Thread {
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             mContext.sendBroadcast(intent);
             return;
-        }
-        else if(CmdStr.startsWith(SPRC_DIRK_VOICE_JSON)){
+        } else if (CmdStr.startsWith(SPRC_DIRK_VOICE_JSON)) {
             String[] VoiceJsonStrSplit = CmdStr.split("\\|");
-            String VoiceJsonStr =null;
-            for (int i=0; i< VoiceJsonStrSplit[2].split("\\#").length ;i++) {
-                VoiceJsonStr=VoiceJsonStrSplit[2].split("\\#")[i];
+            String VoiceJsonStr = null;
+            for (int i = 0; i < VoiceJsonStrSplit[2].split("\\#").length; i++) {
+                VoiceJsonStr = VoiceJsonStrSplit[2].split("\\#")[i];
             }
-            Debug.d(TAG, "VoiceJsonStr ="+VoiceJsonStr);
+            Debug.d(TAG, "VoiceJsonStr =" + VoiceJsonStr);
             Intent intent2 = new Intent();
             intent2.putExtra("cmd", VoiceJsonStr);
             intent2.setAction("xiaomor.foxconn.device.cmd.result");
@@ -548,36 +559,36 @@ public class ServerThread extends Thread {
             return;
         }
         //=============MEDIA key Broadcast
-        else if(CmdStr.contains(SPRC_DIRK_PLAY)){
+        else if (CmdStr.contains(SPRC_DIRK_PLAY)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "play");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_STOP)){
+        } else if (CmdStr.contains(SPRC_DIRK_STOP)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "stop");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_FAST_RETURN)){
+        } else if (CmdStr.contains(SPRC_DIRK_FAST_RETURN)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("toward", "-20");
             mContext.sendBroadcast(intent2);
-        }else if(CmdStr.contains(SPRC_DIRK_FAST_FORWARD)){
+        } else if (CmdStr.contains(SPRC_DIRK_FAST_FORWARD)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("toward", "20");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_PAUSE)){
+        } else if (CmdStr.contains(SPRC_DIRK_PAUSE)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "pause");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_NEXT)){
+        } else if (CmdStr.contains(SPRC_DIRK_NEXT)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "next");
             mContext.sendBroadcast(intent2);
             return;
-        }else if(CmdStr.contains(SPRC_DIRK_PREVIOUS)){
+        } else if (CmdStr.contains(SPRC_DIRK_PREVIOUS)) {
             Intent intent2 = new Intent("com.sharp.intent.action.voicecontrol.media");
             intent2.putExtra("control", "prev");
             mContext.sendBroadcast(intent2);
@@ -598,132 +609,170 @@ public class ServerThread extends Thread {
             KeyCode = KeyEvent.KEYCODE_MEDIA_NEXT;
         }else if(CmdStr.contains(SPRC_DIRK_PREVIOUS)){
             KeyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS;
-        }*/else if(CmdStr.contains(SPRC_DISC_MUTE)){
+        }*/
+        else if (CmdStr.contains(SPRC_DISC_MUTE)) {
             setMute();
             return;
-        }else if(CmdStr.contains(SPRC_DISC_UNMUTE)){
+        } else if (CmdStr.contains(SPRC_DISC_UNMUTE)) {
             setUnMute();
             return;
-        }else {
-      //      Debug.d(TAG, "Does not need send key event to AN so return " );
+        } else {
+            //      Debug.d(TAG, "Does not need send key event to AN so return " );
             return;
         }
 
-
-        if(KeyCode==0) {
-            Debug.d(TAG, "if KeyCode is 0 skip send key event" );
+        if (KeyCode == 0) {
+            Debug.d(TAG, "if KeyCode is 0 skip send key event");
             return;
-        }
-        else {
-                try {
-                    Instrumentation inst = new Instrumentation();
-                    if (prekeyCode == KeyCode && SystemClock.uptimeMillis() - curTime < 300) {
-                        inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, KeyCode, 1));
-                        Debug.d(TAG, "repat KeyCode =" + KeyCode);
-                    } else {
-                        curTime = SystemClock.uptimeMillis();
-                        Debug.d(TAG, "KeyCode =" + KeyCode);
-                       // inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, KeyCode, 0));
-                       // inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_DOWN, key));
-                        inst.sendKeyDownUpSync(KeyCode);
-                    }
-                    prekeyCode = KeyCode;
-                } catch (Exception e) {
-                    Debug.e(TAG, "Error" + e.toString());
+        } else {
+            try {
+                Instrumentation inst = new Instrumentation();
+                /*
+                Debug.d(TAG, "repeat prekeyCode =" + prekeyCode);
+                //Debug.d(TAG, "repeat uptimeMillis =" + (SystemClock.uptimeMillis()-curTime));
+                Debug.d(TAG, "repeat Repeat_count =" + Repeat_count);
+                if (prekeyCode != KeyCode) {
+                    Repeat_count = 0;
+                    IsRepeat = false;
                 }
+                if (prekeyCode == KeyCode && Repeat_count >= repeat_thread_hold ) {
+                    // if (prekeyCode == KeyCode && SystemClock.uptimeMillis() - curTime < 1000) {
+                        long downTime = SystemClock.uptimeMillis();
+                        long eventTime = SystemClock.uptimeMillis();
+                        KeyEvent event1 = new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, KeyCode, 0);
+                        inst.sendKeySync(event1);
+//                    inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, KeyCode, 0));
+                    Debug.d(TAG, "repeat KeyCode =" + KeyCode +" IsRepeat="+IsRepeat);
+                } else
+                    */
+                {
+                    //curTime = SystemClock.uptimeMillis();
+                    Debug.d(TAG, "KeyCode =" + KeyCode);
+                    // inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, KeyCode, 0));
+                    // inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_DOWN, key));
+                    inst.sendKeyDownUpSync(KeyCode);
+
+                }
+                prekeyCode = KeyCode;
+            } catch (Exception e) {
+                Debug.e(TAG, "Error" + e.toString());
+            }
         }
 
-}
-    public static void  simulateKeyByCommand( final int  KeyCode){
+    }
+
+    public static void simulateKeyByCommand(final int KeyCode) {
         try {
-            String keyCommand =  "input keyevent "  +KeyCode;
+            String keyCommand = "input keyevent " + KeyCode;
             Runtime runtime = Runtime.getRuntime();
-            Debug.i(TAG,"@@@simulateKeyByCommand keyCode="+KeyCode);
+            Debug.i(TAG, "@@@simulateKeyByCommand keyCode=" + KeyCode);
             Process proc = runtime.exec(keyCommand);
-        }  catch (IOException e){
+        } catch (IOException e) {
             Debug.e(TAG, "Error" + e.toString());
         }
     }
 
 
+    private boolean IsSohuInputOnTop() {
+        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningTaskInfo> task = am.getRunningTasks(1);
+        ComponentName componentInfo = task.get(0).topActivity;
+        Debug.i(TAG, "IsSohuInputOnTop.componentInfo.getClassName=" + componentInfo.getClassName());
+        // if (componentInfo.getClassName().equals("com.sohu.inputmethod.sogou.tv") == true) {
+        if (componentInfo.getClassName().equals("com.sharp.fxc.search.SearchCMSActivity") == true) {
+            Debug.i(TAG, "Is sohu input method On Top");
+            return true;
+        }
+        Debug.i(TAG, "It is Not sohu input method On Top");
+        return false;
+    }
+
     class keyThread implements Runnable {
         @Override
         public void run() {
-            boolean IsRepat = false;
-            long delay_time_ms =200;
-            int Repat_count = 0 ,repeat_thread_hold=2;
-            KeyThreadExit=false;
+            long delay_time_ms = 200;
+            KeyThreadExit = false;
             Debug.d(TAG, "KeyThreadExit  :" + KeyThreadExit);
-           while (tcpSocket.isConnected() && KeyThreadExit==false){
+
+            while (tcpSocket.isConnected() && KeyThreadExit == false) {
                 try {
                     Instrumentation inst = new Instrumentation();
-                    key=KeyCode;
-                    KeyCode=0;
+                    key = KeyCode;
+                    KeyCode = 0;
+                    InputMethodManager imm = (InputMethodManager) mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    boolean isOpen = imm.isActive();//isOpen若返回true，则表示输入法打开
+                    // Debug.d(TAG, "isOpen  :" + isOpen);
+                    if (isOpen) {
+                        Debug.d(TAG, "is InputMethodManager Open  :return keyThread");
+                        return;
+                    }
 
-                    if (prekey == key && key!=0) {
-                       // Debug.d(TAG, "repat: prekey == key  KeyCode="+key+"  prekey="+prekey);
+                    if (prekey == key && key != 0) {
+                        // Debug.d(TAG, "repeat: prekey == key  KeyCode="+key+"  prekey="+prekey);
                         //if(SystemClock.uptimeMillis() - curTime < 200) {
-                        if(Repat_count==repeat_thread_hold){
-                           // inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, key, 0));
-                            Debug.d(TAG, "keyThread repat ture KeyCode =" + key+"  prekey="+prekey);
-                            IsRepat = true;
-                            Repat_count=0;
-                       }else {
-                            Repat_count++;
-                          //  inst.sendKeyDownUpSync(key);
+                        if (Repeat_count == repeat_thread_hold) {
+                         //   inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_DOWN, key, 0));
+                            // inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_DOWN, key));
+                            Debug.d(TAG, "keyThread repeat ture KeyCode =" + key + "  prekey=" + prekey);
+                           // IsRepeat = true;
+                           // Repeat_count = 0;
+                        } else {
+                           // Repeat_count++;
+                            //  inst.sendKeyDownUpSync(key);
                         }
-                    }else if(key==0 ) {
-                        if(prekey !=0){
-                            if (IsRepat){
-                                Debug.d(TAG, "repat key release ACTION_UP KeyCode=" + key + "  prekey=" + prekey);
-                               // inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_UP, prekey, 0));
+                    } else if (key == 0) {
+                        if (prekey != 0) {
+                            if (IsRepeat) {
+                                Debug.d(TAG, "repeat key release ACTION_UP KeyCode=" + key + "  prekey=" + prekey);
+                                // inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_UP, prekey, 0));
                                 inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, prekey));
-                                IsRepat = false;
+                                IsRepeat = false;
                             }
                         }
-                    }
-                    else {
-                        if (key != 0 && prekey != 0 && prekey != key){
+                    } else {
+                        if (key != 0 && prekey != 0 && prekey != key) {
                             //    curTime = SystemClock.uptimeMillis();
-                                Debug.d(TAG, " sendKeyDownUpSync  KeyCode =" + key + "  prekey=" + prekey);
-                     //           inst.sendKeyDownUpSync(key);
-                         }
-                        IsRepat = false;
-                        if(prekey != key) {
+                            Debug.d(TAG, " If repeat done and  prekey != key  then ACTION_UP prekey  : KeyCode =" + key + "  prekey=" + prekey);
+                            inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, prekey));
+                            //           inst.sendKeyDownUpSync(key);
+                        }
+                        IsRepeat = false;
+                        if (prekey != key) {
                             prekey = key;
-                            Debug.d(TAG, "repat: false ACTION_UP  KeyCode=" + key + "  prekey=" + prekey);
+                            Debug.d(TAG, "repeat: false ACTION_UP  KeyCode=" + key + "  prekey=" + prekey);
                             //inst.sendKeySync(new KeyEvent(curTime, curTime, KeyEvent.ACTION_UP, key, 0));
-                           // inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, key));
+                            inst.sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, key));
                         }
                     }
                 } catch (Exception e) {
                     Debug.e(TAG, "Error" + e.toString());
-                    break ;
+                    break;
                 }
 
-               try {
-                   Thread.sleep(800);
-               } catch (InterruptedException e) {
-                   e.printStackTrace();
-                   break ;
-               }
+                try {
+                    Thread.sleep(800);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    break;
+                }
             }
         }
     }
+
     @Override
     public void run() {
-        try{
+        try {
             boolean goClose = true;
             tcpSocket.setSoTimeout(CONNECT_TIMEOUT);
-           while (tcpSocket != null && tcpSocket.isConnected() && goClose) {
+            while (tcpSocket != null && tcpSocket.isConnected() && goClose) {
                 DataInputStream in = new DataInputStream(tcpSocket.getInputStream());
                 clientin = in;
-               byte[] buffer = new byte[10000];
+                byte[] buffer = new byte[10000];
                 boolean goOut = true;
                 StringBuffer buf = new StringBuffer();
                 while (goOut) {
                     int x = clientin.read(buffer);
-                  //  Debug.d(TAG, "x=in.read()=" + String.valueOf(x));
+                    //  Debug.d(TAG, "x=in.read()=" + String.valueOf(x));
                     if (x != -1) {
                         byte b = (byte) x;
                         //buf.append((char) b);
@@ -735,38 +784,37 @@ public class ServerThread extends Thread {
                         goOut = false;
                     }
                 }
-              reciveString = new String(buffer,"UTF8").trim();
-            //    reciveString = String.valueOf(buf);
-                Debug.d(TAG, "TV Recive Client String  :" + reciveString+" From :("+tcpSocket.getRemoteSocketAddress()+")");
-                if(reciveString.equals("")){
+                reciveString = new String(buffer, "UTF8").trim();
+                //    reciveString = String.valueOf(buf);
+                Debug.d(TAG, "TV Recive Client String  :" + reciveString + " From :(" + tcpSocket.getRemoteSocketAddress() + ")");
+                if (reciveString.equals("")) {
                     goClose = false;
                     Debug.d(TAG, "TCP Socket Go Close=");
                 }
                 // send msg to client
-             //  if (!reciveString.equals(CommandTranf.SPRC_DELI)) {
-                   MapCmdToKeyEvent(reciveString.trim(), clientin);
-              // }
+                //  if (!reciveString.equals(CommandTranf.SPRC_DELI)) {
+                MapCmdToKeyEvent(reciveString.trim(), clientin);
+                // }
                 serverSendByTcp(reciveString.trim(), tcpSocket);
-           }
-        }catch (Exception e) {
+            }
+        } catch (Exception e) {
             Debug.i(TAG, "Tcp socket receive error====>" + e.toString());
-        }
-        finally {
-            if (clientin != null){
+        } finally {
+            if (clientin != null) {
                 try {
-                    Debug.i(TAG, "The tcpSocket="+tcpSocket);
-                    KeyThreadExit=true;
+                    Debug.i(TAG, "The tcpSocket=" + tcpSocket);
+                    KeyThreadExit = true;
                     clientin.close();
                     tcpSocket.close();
                     Debug.i(TAG, "The Socket close!");
-                   this.interrupt();
+                    this.interrupt();
                     Debug.i(TAG, "The Socket thread interrupt!");
                     mClientList.remove(tcpSocket);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
-              clientin = null;
+                clientin = null;
             }
         }
     }

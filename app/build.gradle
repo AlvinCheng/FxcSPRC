@@ -6,18 +6,28 @@ android {
         applicationId "com.foxconn.fxcsprcservice"
         minSdkVersion 19
         targetSdkVersion 23
-        versionCode 12
-        versionName "1.6.1"
+        versionCode 13
+        versionName "1.6.2"
+    }
+
+
+    signingConfigs {
+        key{
+            keyAlias 'debug'
+            keyPassword '123456'
+            storeFile file('D:\\code\\Projects\\debug.jks')
+            storePassword '123456'
+        }
     }
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        debug{
+            signingConfig signingConfigs.key
+        }
     }
-    productFlavors {
-    }
-
 
     android.applicationVariants.all { variant ->
         variant.outputs.all {
